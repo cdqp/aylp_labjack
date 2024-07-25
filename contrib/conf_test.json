@@ -1,0 +1,12 @@
+{
+	"pipeline": [
+		{
+			"uri": "file:build/aylp_labjack_dac.so",
+			"params": {
+				"model": "U3",
+				"test": 1
+			}
+		}
+	]
+}
+
