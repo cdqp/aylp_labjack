@@ -1,25 +1,36 @@
 /** Low-level functions for the LabJack U3.
  * \todo Many functions are unimplemented.
  */
-#ifndef AYLP_LABJACK_U3_H_
-#define AYLP_LABJACK_U3_H_
+#ifndef LABJACK_U3_H_
+#define LABJACK_U3_H_
 
 #include "labjack_ud.h"
 
-#ifndef static_assert
-	#define static_assert _Static_assert
-#endif
-
-// 32.32 little endian 2's complement
-typedef int64_t fp64;
-static inline fp64 dbl2fp64(double d)
-{
-	return d * ((uint64_t)1 << 32);
-}
-static inline double fp642dbl(fp64 f)
-{
-	return (double)f / ((uint64_t)1 << 32);
-}
+// pins
+#define LJU3_FIO0	0x00
+#define LJU3_FIO1	0x01
+#define LJU3_FIO2	0x02
+#define LJU3_FIO3	0x03
+#define LJU3_FIO4	0x04
+#define LJU3_FIO5	0x05
+#define LJU3_FIO6	0x06
+#define LJU3_FIO7	0x07
+#define LJU3_EIO0	0x08
+#define LJU3_EIO1	0x09
+#define LJU3_EIO2	0x0A
+#define LJU3_EIO3	0x0B
+#define LJU3_EIO4	0x0C
+#define LJU3_EIO5	0x0D
+#define LJU3_EIO6	0x0E
+#define LJU3_EIO7	0x0F
+#define LJU3_CIO0	0x10
+#define LJU3_CIO1	0x11
+#define LJU3_CIO2	0x12
+#define LJU3_CIO3	0x13
+#define LJU3_CIO4	0x14
+#define LJU3_CIO5	0x15
+#define LJU3_CIO6	0x16
+#define LJU3_CIO7	0x17
 
 // https://support.labjack.com/docs/5-low-level-functionality-u3-datasheet
 // this is the calibration area of the memory, not the user area
@@ -56,7 +67,7 @@ struct lju3_cal_mem {
 	} block4;
 }__attribute__((packed));
 
-typedef uint16_t lju3_write_mask;
+typedef uint16_t lju3_config_write_mask;
 enum {
 	LJ_COMPATIBILITY_DEFAULTS	= (1 << 8) << 5,
 	LJ_TIMER_DEFAUTLS		= (1 << 8) << 4,
@@ -75,7 +86,7 @@ enum {
 
 struct lju3_config {
 	struct ljud_extended_header header;
-	lju3_write_mask write_mask;
+	lju3_config_write_mask write_mask;
 	uint8_t local_id;
 	lju3_counter_config counter_config;
 	uint8_t fio_analog;
@@ -127,6 +138,30 @@ struct lju3_config_resp {
 }__attribute__((packed));
 static_assert(sizeof(struct lju3_config_resp) == 38, "bad lju3_config_resp");
 
+struct lju3_configio {
+	struct ljud_extended_header header;
+	uint8_t write_mask;
+	uint8_t reserved7;
+	lju3_counter_config counter_config;
+	uint8_t dac1_enable;
+	uint8_t fio_analog;
+	uint8_t eio_analog;
+}__attribute__((packed));
+static_assert(sizeof(struct lju3_configio) == 12, "bad lju3_configio");
+
+struct lju3_configio_resp {
+	struct ljud_extended_header header;
+	ljud_err err;
+	uint8_t reserved7;
+	lju3_counter_config counter_config;
+	uint8_t dac1_enable;
+	uint8_t fio_analog;
+	uint8_t eio_analog;
+}__attribute__((packed));
+static_assert(
+	sizeof(struct lju3_configio_resp) == 12, "bad lju3_configio_resp"
+);
+
 struct lju3_readmem {
 	struct ljud_extended_header header;
 	uint8_t reserved6;
@@ -143,10 +178,19 @@ struct lju3_readmem_resp {
 static_assert(sizeof(struct lju3_readmem_resp) == 40, "bad lju3_readmem_resp");
 
 
+/** Set and return the IO configuration using a ConfigIO command.
+ * Will set header and check checksums for you. */
+int lju3_configio(HANDLE dev,
+	struct lju3_configio *config, struct lju3_configio_resp *config_resp
+);
+
 /** Read calibration memory into a struct lju3_cal_mem.
- * \warning THIS CODE IS NOT TESTED
+ * \warning This function is untested!
  */
 int lju3_read_cal_mem(HANDLE dev, struct lju3_cal_mem *cal_mem);
+
+/** Get the current device configuration using a ConfigU3 command. */
+int lju3_read_config(HANDLE dev, struct lju3_config_resp *config_resp);
 
 
 #endif

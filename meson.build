@@ -12,9 +12,10 @@ gsl_dep = dependency('gsl')
 json_dep = dependency('json-c')
 usb_dep = dependency('libusb-1.0')
 
-shared_library('aylp_labjack_dac',
+shared_library('aylp_ljtdac',
 	[
-		'aylp_labjack_dac.c', 'labjack_ud.c', 'labjack_u3.c',
+		'aylp_ljtdac.c',
+		'labjack_ud.c', 'labjack_u3.c', 'ljtdac.c',
 		'exodriver/liblabjackusb/labjackusb.c'
 	],
 	name_prefix: '',

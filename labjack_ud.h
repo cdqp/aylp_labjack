@@ -4,8 +4,8 @@
  * \warning This is only tested on the U3-HV!
  * \todo Many functions are unimplemented.
  */
-#ifndef AYLP_LABJACK_UD_H_
-#define AYLP_LABJACK_UD_H_
+#ifndef LABJACK_UD_H_
+#define LABJACK_UD_H_
 
 #include <stdint.h>
 #include "labjackusb.h"
@@ -98,6 +98,17 @@ enum {
 /** 2-byte normal response given when LJ detects bad checksum. */
 #define LJ_BAD_CHECKSUM 0xB8B8
 
+// 32.32 little endian 2's complement
+typedef int64_t fp64;
+static inline fp64 dbl2fp64(double d)
+{
+	return d * ((uint64_t)1 << 32);
+}
+static inline double fp642dbl(fp64 f)
+{
+	return (double)f / ((uint64_t)1 << 32);
+}
+
 // https://support.labjack.com/docs/general-protocol-ud-devices-only
 struct ljud_normal_header {
 	uint8_t checksum8;
@@ -124,14 +135,27 @@ struct ljud_i2c_header {
 	struct ljud_extended_header header;
 	ljud_i2c_options i2c_options;
 	uint8_t speed_adjust;
-	uint8_t sdap_pin_num;
-	uint8_t scl_pin_num;
+	uint8_t sda_pin;
+	uint8_t scl_pin;
 	uint8_t address_byte;
 	uint8_t reserved11;
 	uint8_t n_i2c_bytes_tx;
 	uint8_t n_i2c_bytes_rx;
 }__attribute__((packed));
 static_assert(sizeof(struct ljud_i2c_header) == 14, "bad ljud_i2c_header");
+
+struct ljud_i2c_resp_header {
+	struct ljud_extended_header header;
+	ljud_err err;
+	uint8_t reserved7;
+	uint8_t ackarray0;
+	uint8_t ackarray1;
+	uint8_t ackarray2;
+	uint8_t ackarray3;
+}__attribute__((packed));
+static_assert(
+	sizeof(struct ljud_i2c_resp_header) == 12, "bad ljud_i2c_resp_header"
+);
 
 
 /** Perform the LJ UD 8-bit checksum on some data.

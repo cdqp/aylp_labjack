@@ -1,10 +1,9 @@
 {
 	"pipeline": [
 		{
-			"uri": "file:build/aylp_labjack_dac.so",
+			"uri": "file:build/aylp_ljtdac.so",
 			"params": {
-				"model": "U3",
-				"test": 1
+				"host": "U3"
 			}
 		}
 	]
