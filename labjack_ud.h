@@ -114,6 +114,7 @@ struct ljud_normal_header {
 	uint8_t checksum8;
 	uint8_t command;
 }__attribute__((packed));
+
 struct ljud_extended_header {
 	uint8_t checksum8;
 	uint8_t command;

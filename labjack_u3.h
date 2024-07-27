@@ -69,19 +69,67 @@ struct lju3_cal_mem {
 
 typedef uint16_t lju3_config_write_mask;
 enum {
-	LJ_COMPATIBILITY_DEFAULTS	= (1 << 8) << 5,
-	LJ_TIMER_DEFAUTLS		= (1 << 8) << 4,
-	LJ_LOCAL_ID			= (1 << 8) << 3,
-	LJ_DAC_DEFAULTS			= (1 << 8) << 2,
-	LJ_DIGITAL_IO_DEFAULTS		= (1 << 8) << 1,
+	LJU3_COMPATIBILITY_DEFAULTS	= (1 << 8) << 5,
+	LJU3_TIMER_DEFAUTLS		= (1 << 8) << 4,
+	LJU3_LOCAL_ID			= (1 << 8) << 3,
+	LJU3_DAC_DEFAULTS			= (1 << 8) << 2,
+	LJU3_DIGITAL_IO_DEFAULTS		= (1 << 8) << 1,
 };
 
 typedef uint8_t lju3_counter_config;
 enum {
 	// bits 4-7: timer counter pin offset
-	LJ_ENABLE_COUNTER1	= 1 << 3,
-	LJ_ENABLE_COUNTER0	= 1 << 2,
+	LJU3_ENABLE_COUNTER1	= 1 << 3,
+	LJU3_ENABLE_COUNTER0	= 1 << 2,
 	// bits 0-1: number of timers enabled
+};
+
+typedef uint8_t lju3_clock_config;
+enum {
+	// bit 7: enable writing the clock config
+	LJU3_WRITE_CLOCK_CONFIG	= 1 << 7,
+	// bits 2~0: timer clock base (_DIV indicates clock_divisor is used)
+	LJU3_CLOCK_4MHZ		= 0,
+	LJU3_CLOCK_12MHZ	= 1,
+	LJU3_CLOCK_48MHZ	= 2,
+	LJU3_CLOCK_1MHZ_DIV	= 3,
+	LJU3_CLOCK_4MHZ_DIV	= 4,
+	LJU3_CLOCK_12MHZ_DIV	= 5,
+	LJU3_CLOCK_48MHZ_DIV	= 6,
+};
+
+typedef uint8_t lju3_timer_mode;
+enum {
+	// 16-bit PWM output
+	LJU3_TIMER_OUT_PWM16	= 0,
+	// 8-bit PWM output
+	LJU3_TIMER_OUT_PWM8	= 1,
+	// period input (32-bit, rising edges)
+	LJU3_TIMER_IN_P32R	= 2,
+	// period input (32-bit, falling edges)
+	LJU3_TIMER_IN_P32F	= 3,
+	// duty cycle input
+	LJU3_TIMER_IN_DUTY	= 4,
+	// firmware counter input
+	LJU3_TIMER_IN_COUNT	= 5,
+	// firmware counter input (with debounce)
+	LJU3_TIMER_IN_COUNTD	= 6,
+	// frequency output
+	LJU3_TIMER_OUT_SQUARE	= 7,
+	// quadrature input
+	LJU3_TIMER_IN_QUAD	= 8,
+	// timer stop input (odd timers only)
+	LJU3_TIMER_IN_STOP	= 9,
+	// system timer low read (default mode)
+	LJU3_TIMER_READ_LOW	= 10,
+	// system timer high read
+	LJU3_TIMER_READ_HIGH	= 11,
+	// period input (16-bit, rising edges)
+	LJU3_TIMER_IN_P16R	= 12,
+	// period input (16-bit, falling edges)
+	LJU3_TIMER_IN_P16F	= 13,
+	// line-to-line input
+	LJU3_TIMER_IN_LINE	= 14,
 };
 
 struct lju3_config {
@@ -100,7 +148,7 @@ struct lju3_config {
 	uint8_t dac1_enable;
 	uint8_t swdt_dac0_response;
 	uint8_t swdt_dac1_response;
-	uint8_t clock_config;
+	lju3_clock_config clock_config;
 	uint8_t clock_divisor;
 	uint8_t compatibility;
 	uint8_t reserved24;
@@ -162,6 +210,26 @@ static_assert(
 	sizeof(struct lju3_configio_resp) == 12, "bad lju3_configio_resp"
 );
 
+struct lju3_config_timer {
+	struct ljud_extended_header header;
+	uint8_t reserved6;
+	uint8_t reserved7;
+	uint8_t clock_config;
+	uint8_t clock_divisor;
+}__attribute__((packed));
+static_assert(sizeof(struct lju3_config_timer) == 10, "bad lju3_config_timer");
+
+struct lju3_config_timer_resp {
+	struct ljud_extended_header header;
+	ljud_err err;
+	uint8_t reserved7;
+	uint8_t clock_config;
+	uint8_t clock_divisor;
+}__attribute__((packed));
+static_assert(sizeof(struct lju3_config_timer_resp) == 10,
+	"bad lju3_config_timer_resp"
+);
+
 struct lju3_readmem {
 	struct ljud_extended_header header;
 	uint8_t reserved6;
@@ -192,6 +260,12 @@ int lju3_read_cal_mem(HANDLE dev, struct lju3_cal_mem *cal_mem);
 /** Get the current device configuration using a ConfigU3 command. */
 int lju3_read_config(HANDLE dev, struct lju3_config_resp *config_resp);
 
+/** Start a timer on the specified pin.
+ * \todo: only supports one timer at any given time.
+ */
+int lju3_timer(HANDLE dev,
+	uint8_t pin, lju3_timer_mode mode, unsigned long hz_req, double *hz_real
+);
 
 #endif
 
