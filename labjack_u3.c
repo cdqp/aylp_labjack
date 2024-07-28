@@ -1,26 +1,64 @@
 #include <errno.h>
 #include <math.h>
 #include <string.h>
-						#include <libaylp/logging.h>
 
 #include "labjack_u3.h"
 
 
-int lju3_configio(HANDLE dev,
-	struct lju3_configio *config, struct lju3_configio_resp *config_resp
+int lju3_config_timer_clock(HANDLE dev,
+	struct lju3_config_timer_clock *config,
+	struct lju3_config_timer_clock_resp *config_resp
 ) {
 	unsigned long n;
-	const unsigned n_tx = sizeof(struct lju3_configio);
-	const unsigned n_rx = sizeof(struct lju3_configio_resp);
+	const unsigned n_tx = sizeof(struct lju3_config_timer_clock);
+	const unsigned n_rx = sizeof(struct lju3_config_timer_clock_resp);
 	const unsigned n_head = sizeof(struct ljud_extended_header);
 
 	config->header.command = 0xF8;
 	config->header.n_data_words = ((n_tx - n_head) / 2);
-	static_assert(
-		sizeof(struct lju3_configio)
-		- sizeof(struct ljud_extended_header)
-		== 2 * 0x03, "bad n_data_words"
+	config->header.extended_command = 0x0A;
+
+	config->header.checksum16 = ljud_checksum16(
+		(uint8_t *)config + 6, n_tx - 6
 	);
+	config->header.checksum8 = ljud_checksum8(
+		(uint8_t *)config + 1, n_head - 1
+	);
+
+	n = LJUSB_Write(dev, (uint8_t *)config, n_tx);
+	if (n < n_tx) return -ECOMM;
+
+	n = LJUSB_Read(dev, (uint8_t *)config_resp, n_rx);
+	if (n < n_rx) {
+		// LJ is telling us we have a bad checksum
+		if (*(uint16_t *)config_resp == 0xB8B8) return -EBADMSG;
+		return -EREMOTEIO;
+	}
+
+	if (
+		config_resp->header.checksum16
+		!= ljud_checksum16((uint8_t *)config_resp + 6, n_rx - 6)
+	) {
+		// LJ checksum failed
+		return -EBADE;
+	}
+
+	if (config_resp->err) return config_resp->err;
+
+	return 0;
+}
+
+
+int lju3_config_io(HANDLE dev,
+	struct lju3_config_io *config, struct lju3_config_io_resp *config_resp
+) {
+	unsigned long n;
+	const unsigned n_tx = sizeof(struct lju3_config_io);
+	const unsigned n_rx = sizeof(struct lju3_config_io_resp);
+	const unsigned n_head = sizeof(struct ljud_extended_header);
+
+	config->header.command = 0xF8;
+	config->header.n_data_words = ((n_tx - n_head) / 2);
 	config->header.extended_command = 0x0B;
 
 	config->header.checksum16 = ljud_checksum16(
@@ -47,6 +85,53 @@ int lju3_configio(HANDLE dev,
 		// LJ checksum failed
 		return -EBADE;
 	}
+
+	return 0;
+}
+
+
+int lju3_feedback_timer_config(HANDLE dev,
+	struct lju3_feedback_timer_config *config,
+	struct lju3_feedback_resp_header *config_resp
+) {
+	unsigned long n;
+	const unsigned n_tx = sizeof(struct lju3_feedback_timer_config);
+	const unsigned n_rx = sizeof(struct lju3_feedback_resp_header);
+	const unsigned n_head = sizeof(struct ljud_extended_header);
+
+	// docs say this is "43,45"; idk i'm just gonna use the former
+	config->io_type = 0x2B;
+	config->header.echo = 0xAA;	// arbitrary
+	config->header.header.command = 0xF8;
+	config->header.header.n_data_words = ((n_tx - n_head) / 2);
+	config->header.header.extended_command = 0x00;
+
+	config->header.header.checksum16 = ljud_checksum16(
+		(uint8_t *)config + 6, n_tx - 6
+	);
+	config->header.header.checksum8 = ljud_checksum8(
+		(uint8_t *)config + 1, n_head - 1
+	);
+
+	n = LJUSB_Write(dev, (uint8_t *)config, n_tx);
+	if (n < n_tx) return -ECOMM;
+
+	n = LJUSB_Read(dev, (uint8_t *)config_resp, n_rx);
+	if (n < n_rx) {
+		// LJ is telling us we have a bad checksum
+		if (*(uint16_t *)config_resp == 0xB8B8) return -EBADMSG;
+		return -EREMOTEIO;
+	}
+
+	if (
+		config_resp->header.checksum16
+		!= ljud_checksum16((uint8_t *)config_resp + 6, n_rx - 6)
+	) {
+		// LJ checksum failed
+		return -EBADE;
+	}
+	if (config_resp->echo != config->header.echo) return -EBADE;
+	if (config_resp->err) return config_resp->err;
 
 	return 0;
 }
@@ -138,16 +223,22 @@ int lju3_read_config(HANDLE dev, struct lju3_config_resp *config_resp)
 }
 
 
-int lju3_timer(HANDLE dev,
-	uint8_t pin, lju3_timer_mode mode, unsigned long hz_req, double *hz_real
-) {
-	unsigned long n;
-	const unsigned n_tx = sizeof(struct lju3_config_timer);
-	const unsigned n_rx = sizeof(struct lju3_config_timer_resp);
-	const unsigned n_head = sizeof(struct ljud_extended_header);
-	struct lju3_config_timer config = {0};
-	struct lju3_config_timer_resp config_resp;
-	config.clock_config = LJU3_WRITE_CLOCK_CONFIG;
+int lju3_square(HANDLE dev, uint8_t pin, unsigned long hz_req, double *hz_real)
+{
+	int err;
+
+	// LJ docs: To configure timers, write to the following:
+	//	NumberTimersEnabled TimerClockBase TimerClockDivisor
+	//	TimerCounterPinOffset TimerValue TimerMode
+	// this involves communicating the following structs:
+	// config_timer_clock: base, divisor
+	// config_io.timer_counter_config: number enabled, pin offset
+	// feedback_timer_config: value, mode
+
+	// let's do the timer clock config first
+	struct lju3_config_timer_clock config_timer_clock = {0};
+	struct lju3_config_timer_clock_resp config_timer_clock_resp;
+	config_timer_clock.clock_config = LJU3_WRITE_CLOCK_CONFIG;
 
 	// LJ docs: frequency = TimerClockBase/(TimerClockDivisor*2*TimerValue)
 	// base in {1,4,12,48} MHz, divisor <= 0xFF, value <= 0xFF
@@ -157,16 +248,16 @@ int lju3_timer(HANDLE dev,
 	unsigned base;
 	if (hz_req > (48000000 >> 0x11)) {
 		base = 48000000;
-		config.clock_config |= LJU3_CLOCK_48MHZ_DIV;
+		config_timer_clock.clock_config |= LJU3_CLOCK_48MHZ_DIV;
 	} else if (hz_req > (12000000 >> 0x11)) {
 		base = 12000000;
-		config.clock_config |= LJU3_CLOCK_12MHZ_DIV;
+		config_timer_clock.clock_config |= LJU3_CLOCK_12MHZ_DIV;
 	} else if (hz_req > (4000000 >> 0x11)) {
 		base = 4000000;
-		config.clock_config |= LJU3_CLOCK_4MHZ_DIV;
+		config_timer_clock.clock_config |= LJU3_CLOCK_4MHZ_DIV;
 	} else {
 		base = 1000000;
-		config.clock_config |= LJU3_CLOCK_1MHZ_DIV;
+		config_timer_clock.clock_config |= LJU3_CLOCK_1MHZ_DIV;
 	}
 
 	// we want divisor and value to multiply close to this
@@ -200,47 +291,34 @@ int lju3_timer(HANDLE dev,
 			err_best = fabs(d * v_min - product);
 		}
 	}
-log_debug("base = %lu", base);
-log_debug("divisor = %lu", divisor_best);
-log_debug("value = %lu", value_best);
 
 	*hz_real = (double)base / (divisor_best * 2 * value_best);
-	config.clock_divisor = divisor_best;
+	config_timer_clock.clock_divisor = divisor_best;
 
-	// ConfigTimerClockConfig command
-	config.header.command = 0xF8;
-	config.header.n_data_words = ((n_tx - n_head) / 2);
-	config.header.extended_command = 0x0A;
-
-	config.header.checksum16 = ljud_checksum16(
-		(uint8_t *)&config + 6, n_tx - 6
+	err = lju3_config_timer_clock(dev,
+		&config_timer_clock, &config_timer_clock_resp
 	);
-	config.header.checksum8 = ljud_checksum8(
-		(uint8_t *)&config + 1, n_head - 1
+	if (err) return err;
+
+	// now, config_io.timer_counter_config
+	struct lju3_config_io config_io = {0};
+	struct lju3_config_io_resp config_io_resp;
+	config_io.write_mask |= 1 << 0;		// set timer_counter_config
+	config_io.timer_counter_config = 1;	// enable 1 timer
+	// pin offset to the requested pin
+	config_io.timer_counter_config |= pin << 4;
+	err = lju3_config_io(dev, &config_io, &config_io_resp);
+	if (err) return err;
+
+	// finally, feedback
+	struct lju3_feedback_timer_config feedback_timer_config;
+	struct lju3_feedback_resp_header feedback_timer_config_resp;
+	feedback_timer_config.timer_mode = LJU3_TIMER_OUT_SQUARE;
+	feedback_timer_config.value = value_best;
+	err = lju3_feedback_timer_config(
+		dev, &feedback_timer_config, &feedback_timer_config_resp
 	);
-
-	n = LJUSB_Write(dev, (uint8_t *)&config, n_tx);
-	if (n < n_tx) return -ECOMM;
-
-	n = LJUSB_Read(dev, (uint8_t *)&config_resp, n_rx);
-	if (n < n_rx) {
-		// LJ is telling us we have a bad checksum
-		if (*(uint16_t *)&config_resp == 0xB8B8) return -EBADMSG;
-		return -EREMOTEIO;
-	}
-
-	if (
-		config_resp.header.checksum16
-		!= ljud_checksum16((uint8_t *)&config_resp + 6, n_rx - 6)
-	) {
-		// LJ checksum failed
-		return -EBADE;
-	}
-
-	if (config_resp.err) return config_resp.err;
-
-	// TODO: set value
-
+	if (err) return err;
 
 	return 0;
 }

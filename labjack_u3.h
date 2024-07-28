@@ -76,7 +76,7 @@ enum {
 	LJU3_DIGITAL_IO_DEFAULTS		= (1 << 8) << 1,
 };
 
-typedef uint8_t lju3_counter_config;
+typedef uint8_t lju3_timer_counter_config;
 enum {
 	// bits 4-7: timer counter pin offset
 	LJU3_ENABLE_COUNTER1	= 1 << 3,
@@ -96,6 +96,39 @@ enum {
 	LJU3_CLOCK_4MHZ_DIV	= 4,
 	LJU3_CLOCK_12MHZ_DIV	= 5,
 	LJU3_CLOCK_48MHZ_DIV	= 6,
+};
+
+typedef uint8_t lju3_io_type;
+enum {
+	AIN			= 1,
+	AIN24			= 2,
+	AIN24AR			= 3,
+	WAIT_SHORT		= 5,
+	WAIT_LONG		= 6,
+	LED			= 9,
+	BIT_STATE_READ		= 10,
+	BIT_STATE_WRITE		= 11,
+	BIT_DIR_READ		= 12,
+	BIT_DIR_WRITE		= 13,
+	PORT_STATE_READ		= 26,
+	PORT_STATE_WRITE	= 27,
+	PORT_DIR_READ		= 28,
+	PORT_DIR_WRITE		= 29,
+	DAC0_8			= 34,
+	DAC1_8			= 35,
+	DAC0_16			= 38,
+	DAC1_16			= 39,
+	TIMER0			= 42,
+	TIMER0_CONFIG		= 43,
+	TIMER1			= 44,
+	TIMER1_CONFIG		= 45,
+	TIMER2			= 46,
+	TIMER2_CONFIG		= 47,
+	TIMER3			= 48,
+	TIMER3_CONFIG		= 49,
+	COUNTER0		= 54,
+	COUNTER1		= 55,
+	BUZZER			= 63,
 };
 
 typedef uint8_t lju3_timer_mode;
@@ -136,7 +169,7 @@ struct lju3_config {
 	struct ljud_extended_header header;
 	lju3_config_write_mask write_mask;
 	uint8_t local_id;
-	lju3_counter_config counter_config;
+	lju3_timer_counter_config timer_counter_config;
 	uint8_t fio_analog;
 	uint8_t fio_direction;
 	uint8_t fio_state;
@@ -186,48 +219,80 @@ struct lju3_config_resp {
 }__attribute__((packed));
 static_assert(sizeof(struct lju3_config_resp) == 38, "bad lju3_config_resp");
 
-struct lju3_configio {
+struct lju3_config_io {
 	struct ljud_extended_header header;
 	uint8_t write_mask;
 	uint8_t reserved7;
-	lju3_counter_config counter_config;
+	lju3_timer_counter_config timer_counter_config;
 	uint8_t dac1_enable;
 	uint8_t fio_analog;
 	uint8_t eio_analog;
 }__attribute__((packed));
-static_assert(sizeof(struct lju3_configio) == 12, "bad lju3_configio");
+static_assert(sizeof(struct lju3_config_io) == 12, "bad lju3_config_io");
 
-struct lju3_configio_resp {
+struct lju3_config_io_resp {
 	struct ljud_extended_header header;
 	ljud_err err;
 	uint8_t reserved7;
-	lju3_counter_config counter_config;
+	lju3_timer_counter_config timer_counter_config;
 	uint8_t dac1_enable;
 	uint8_t fio_analog;
 	uint8_t eio_analog;
 }__attribute__((packed));
 static_assert(
-	sizeof(struct lju3_configio_resp) == 12, "bad lju3_configio_resp"
+	sizeof(struct lju3_config_io_resp) == 12, "bad lju3_config_io_resp"
 );
 
-struct lju3_config_timer {
+struct lju3_config_timer_clock {
 	struct ljud_extended_header header;
 	uint8_t reserved6;
 	uint8_t reserved7;
 	uint8_t clock_config;
 	uint8_t clock_divisor;
 }__attribute__((packed));
-static_assert(sizeof(struct lju3_config_timer) == 10, "bad lju3_config_timer");
+static_assert(sizeof(struct lju3_config_timer_clock) == 10,
+	"bad lju3_config_timer_clock"
+);
 
-struct lju3_config_timer_resp {
+struct lju3_config_timer_clock_resp {
 	struct ljud_extended_header header;
 	ljud_err err;
 	uint8_t reserved7;
 	uint8_t clock_config;
 	uint8_t clock_divisor;
 }__attribute__((packed));
-static_assert(sizeof(struct lju3_config_timer_resp) == 10,
-	"bad lju3_config_timer_resp"
+static_assert(sizeof(struct lju3_config_timer_clock_resp) == 10,
+	"bad lju3_config_timer_clock_resp"
+);
+
+struct lju3_feedback_header {
+	struct ljud_extended_header header;
+	uint8_t echo;
+}__attribute__((packed));
+static_assert(
+	sizeof(struct lju3_feedback_header) == 7, "bad lju3_feedback_header"
+);
+
+struct lju3_feedback_resp_header {
+	struct ljud_extended_header header;
+	ljud_err err;
+	uint8_t error_frame;
+	uint8_t echo;
+	uint8_t _padding;
+}__attribute__((packed));
+static_assert(sizeof(struct lju3_feedback_resp_header) == 9 + 1,
+	"bad lju3_feedback_resp_header"
+);
+
+struct lju3_feedback_timer_config {
+	struct lju3_feedback_header header;
+	lju3_io_type io_type;
+	lju3_timer_mode timer_mode;
+	uint16_t value;
+	uint8_t _padding;
+}__attribute__((packed));
+static_assert(sizeof(struct lju3_feedback_timer_config) == 7 + 4 + 1,
+	"bad lju3_feedback_timer_config"
 );
 
 struct lju3_readmem {
@@ -245,11 +310,19 @@ struct lju3_readmem_resp {
 }__attribute__((packed));
 static_assert(sizeof(struct lju3_readmem_resp) == 40, "bad lju3_readmem_resp");
 
+/** Set and get the timer clock configuration using a ConfigTimerClock
+ * command. Will set header and check checksums for you.
+ */
+int lju3_config_timer_clock(HANDLE dev,
+	struct lju3_config_timer_clock *config,
+	struct lju3_config_timer_clock_resp *config_resp
+);
 
-/** Set and return the IO configuration using a ConfigIO command.
- * Will set header and check checksums for you. */
-int lju3_configio(HANDLE dev,
-	struct lju3_configio *config, struct lju3_configio_resp *config_resp
+/** Set and get the IO configuration using a ConfigIO command.
+ * Will set header and check checksums for you.
+ */
+int lju3_config_io(HANDLE dev,
+	struct lju3_config_io *config, struct lju3_config_io_resp *config_resp
 );
 
 /** Read calibration memory into a struct lju3_cal_mem.
@@ -260,12 +333,10 @@ int lju3_read_cal_mem(HANDLE dev, struct lju3_cal_mem *cal_mem);
 /** Get the current device configuration using a ConfigU3 command. */
 int lju3_read_config(HANDLE dev, struct lju3_config_resp *config_resp);
 
-/** Start a timer on the specified pin.
+/** Start outputting a square wave on the specified pin.
  * \todo: only supports one timer at any given time.
  */
-int lju3_timer(HANDLE dev,
-	uint8_t pin, lju3_timer_mode mode, unsigned long hz_req, double *hz_real
-);
+int lju3_square(HANDLE dev, uint8_t pin, unsigned long hz_req, double *hz_real);
 
 #endif
 

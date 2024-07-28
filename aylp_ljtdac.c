@@ -41,9 +41,7 @@ static int init_u3(struct aylp_ljtdac_data *data)
 		log_error("lju3_config_resp returned %d: %s",
 			err, strerror(-err)
 		);
-		log_error("errno was %d: %s",
-			errno, strerror(errno)
-		);
+		log_debug("errno was %d: %s", errno, strerror(errno));
 		return -1;
 	}
 	log_debug("U3 startup configuration:");
@@ -84,45 +82,42 @@ static int init_u3(struct aylp_ljtdac_data *data)
 	);
 
 	// configure IO ports
-	struct lju3_configio configio = {0};
-	struct lju3_configio_resp configio_resp;
-	configio.write_mask |= 1 << 0;	// set counter_config
-	configio.write_mask |= 1 << 1;	// set dac1_enable
-	configio.write_mask |= 1 << 2;	// set fio_analog
-	configio.counter_config = 0x40;	// disable counters, offset = 4
-	configio.dac1_enable = 0;	// disable dac1
-	configio.fio_analog = 0;	// set to digital
-	err = lju3_configio(data->dev, &configio, &configio_resp);
+	struct lju3_config_io config_io = {0};
+	struct lju3_config_io_resp config_io_resp;
+	config_io.write_mask |= 1 << 0;		// set counter_config
+	config_io.write_mask |= 1 << 1;		// set dac1_enable
+	config_io.write_mask |= 1 << 2;		// set fio_analog
+	config_io.timer_counter_config = 0x40;	// disable counters, offset = 4
+	config_io.dac1_enable = 0;		// disable dac1
+	config_io.fio_analog = 0;		// set to digital
+	err = lju3_config_io(data->dev, &config_io, &config_io_resp);
 	if (err) {
-		log_error("lju3_configio returned %d: %s",
+		log_error("lju3_config_io returned %d: %s",
 			err, strerror(-err)
 		);
-		log_error("errno was %d: %s",
-			errno, strerror(errno)
-		);
+		log_debug("errno was %d: %s", errno, strerror(errno));
 		return -1;
 	}
 	log_debug("U3 ConfigIO:");
-	log_debug("	counter_config: %hhX",
-		configio_resp.counter_config
+	log_debug("	timer_counter_config: %hhX",
+		config_io_resp.timer_counter_config
 	);
-	log_debug("	dac1_enable: %u", configio_resp.dac1_enable);
-	log_debug("	fio_analog: %u", configio_resp.fio_analog);
-	log_debug("	eio_analog: %u", configio_resp.eio_analog);
+	log_debug("	dac1_enable: %u", config_io_resp.dac1_enable);
+	log_debug("	fio_analog: %u", config_io_resp.fio_analog);
+	log_debug("	eio_analog: %u", config_io_resp.eio_analog);
 
 	// output square wave if wanted
 	if (data->square_hz) {
 		log_info("You requested square_hz = %lu", data->square_hz);
 		double hz_real;
-		err = lju3_timer(
-			data->dev, data->square_pin, LJU3_TIMER_OUT_SQUARE,
-			data->square_hz, &hz_real
+		err = lju3_square(
+			data->dev, LJU3_FIO6, data->square_hz, &hz_real
 		);
 		if (err) {
-			log_error("lju3_timer returned %d: %s",
+			log_error("lju3_square returned %d: %s",
 				err, strerror(-err)
 			);
-			log_error("errno was %d: %s", errno, strerror(errno));
+			log_debug("errno was %d: %s", errno, strerror(errno));
 			return err;
 		}
 		log_info("Best I could do: %G Hz", hz_real);
@@ -186,9 +181,7 @@ int aylp_ljtdac_init(struct aylp_device *self)
 		log_error("ljtdac_read_cal_mem returned %d: %s",
 			err, strerror(-err)
 		);
-		log_error("errno was %d: %s",
-			errno, strerror(errno)
-		);
+		log_debug("errno was %d: %s", errno, strerror(errno));
 		return -1;
 	}
 	log_debug("LJTick calibration:");
