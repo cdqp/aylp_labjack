@@ -154,6 +154,9 @@ int aylp_ljtdac_init(struct aylp_device *self)
 		} else if (!strcmp(key, "square_hz")) {
 			data->square_hz = json_object_get_uint64(val);
 			log_trace("square_hz = %lu", data->square_hz);
+		} else if (!strcmp(key, "fast")) {
+			data->fast = json_object_get_boolean(val);
+			log_trace("fast = %hhu", data->fast);
 		} else {
 			log_warn("Unknown parameter \"%s\"", key);
 		}
@@ -175,7 +178,7 @@ int aylp_ljtdac_init(struct aylp_device *self)
 
 	// read ljtick-dac calibration memory
 	err = ljtdac_read_cal_mem(
-		data->dev, data->sda_pin, data->scl_pin, &data->cal_mem
+		data->dev, &data->cal_mem, data->sda_pin, data->scl_pin
 	);
 	if (err) {
 		log_error("ljtdac_read_cal_mem returned %d: %s",
@@ -202,22 +205,64 @@ int aylp_ljtdac_init(struct aylp_device *self)
 
 int aylp_ljtdac_u3_proc(struct aylp_device *self, struct aylp_state *state)
 {
+	int err;
 	struct aylp_ljtdac_data *data = self->device_data;
 	if (state->vector->size > 0) {
-		log_trace("Wrote %G V to DACA.");
+		err = ljtdac_write_dac(
+			data->dev, &data->cal_mem, data->sda_pin, data->scl_pin,
+			data->fast, LJTDAC_WRITE_DACA, state->vector->data[0]
+		);
+		if (err) {
+			log_error("ljtdac_write_dac returned %d: %s",
+				err, strerror(-err)
+			);
+			log_debug("errno was %d: %s", errno, strerror(errno));
+			return err;
+		}
+		log_trace("Wrote %G V to DACA.", state->vector->data[0]);
 	}
 	if (state->vector->size > 1) {
-		log_trace("Wrote %G V to DACB.");
+		ljtdac_write_dac(
+			data->dev, &data->cal_mem, data->sda_pin, data->scl_pin,
+			data->fast, LJTDAC_WRITE_DACB, state->vector->data[1]
+		);
+		if (err) {
+			log_error("ljtdac_write_dac returned %d: %s",
+				err, strerror(-err)
+			);
+			log_debug("errno was %d: %s", errno, strerror(errno));
+			return err;
+		}
+		log_trace("Wrote %G V to DACB.", state->vector->data[1]);
 	}
-	UNUSED(data);
-	UNUSED(state);
 	return 0;
 }
 
 
 int aylp_ljtdac_u3_fini(struct aylp_device *self)
 {
+	int err;
 	struct aylp_ljtdac_data *data = self->device_data;
+	err = ljtdac_write_dac(
+		data->dev, &data->cal_mem, data->sda_pin, data->scl_pin,
+		data->fast, LJTDAC_WRITE_DACA, 0.0
+	);
+	if (err) {
+		log_error("ljtdac_write_dac returned %d: %s",
+			err, strerror(-err)
+		);
+		log_debug("errno was %d: %s", errno, strerror(errno));
+	}
+	err = ljtdac_write_dac(
+		data->dev, &data->cal_mem, data->sda_pin, data->scl_pin,
+		data->fast, LJTDAC_WRITE_DACB, 0.0
+	);
+	if (err) {
+		log_error("ljtdac_write_dac returned %d: %s",
+			err, strerror(-err)
+		);
+		log_debug("errno was %d: %s", errno, strerror(errno));
+	}
 	LJUSB_CloseDevice(data->dev);
 	xfree(data);
 	return 0;

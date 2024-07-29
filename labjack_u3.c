@@ -223,8 +223,9 @@ int lju3_read_config(HANDLE dev, struct lju3_config_resp *config_resp)
 }
 
 
-int lju3_square(HANDLE dev, uint8_t pin, unsigned long hz_req, double *hz_real)
-{
+int lju3_square(
+	HANDLE dev, ljud_pin pin, unsigned long hz_req, double *hz_real
+) {
 	int err;
 
 	// LJ docs: To configure timers, write to the following:

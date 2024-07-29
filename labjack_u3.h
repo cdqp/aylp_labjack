@@ -7,30 +7,14 @@
 #include "labjack_ud.h"
 
 // pins
-#define LJU3_FIO0	0x00
-#define LJU3_FIO1	0x01
-#define LJU3_FIO2	0x02
-#define LJU3_FIO3	0x03
-#define LJU3_FIO4	0x04
-#define LJU3_FIO5	0x05
-#define LJU3_FIO6	0x06
-#define LJU3_FIO7	0x07
-#define LJU3_EIO0	0x08
-#define LJU3_EIO1	0x09
-#define LJU3_EIO2	0x0A
-#define LJU3_EIO3	0x0B
-#define LJU3_EIO4	0x0C
-#define LJU3_EIO5	0x0D
-#define LJU3_EIO6	0x0E
-#define LJU3_EIO7	0x0F
-#define LJU3_CIO0	0x10
-#define LJU3_CIO1	0x11
-#define LJU3_CIO2	0x12
-#define LJU3_CIO3	0x13
-#define LJU3_CIO4	0x14
-#define LJU3_CIO5	0x15
-#define LJU3_CIO6	0x16
-#define LJU3_CIO7	0x17
+enum {
+	LJU3_FIO0 = 0x00, LJU3_FIO1 = 0x01, LJU3_FIO2 = 0x02, LJU3_FIO3 = 0x03,
+	LJU3_FIO4 = 0x04, LJU3_FIO5 = 0x05, LJU3_FIO6 = 0x06, LJU3_FIO7 = 0x07,
+	LJU3_EIO0 = 0x08, LJU3_EIO1 = 0x09, LJU3_EIO2 = 0x0A, LJU3_EIO3 = 0x0B,
+	LJU3_EIO4 = 0x0C, LJU3_EIO5 = 0x0D, LJU3_EIO6 = 0x0E, LJU3_EIO7 = 0x0F,
+	LJU3_CIO0 = 0x10, LJU3_CIO1 = 0x11, LJU3_CIO2 = 0x12, LJU3_CIO3 = 0x13,
+	LJU3_CIO4 = 0x14, LJU3_CIO5 = 0x15, LJU3_CIO6 = 0x16, LJU3_CIO7 = 0x17,
+};
 
 // https://support.labjack.com/docs/5-low-level-functionality-u3-datasheet
 // this is the calibration area of the memory, not the user area
@@ -336,7 +320,9 @@ int lju3_read_config(HANDLE dev, struct lju3_config_resp *config_resp);
 /** Start outputting a square wave on the specified pin.
  * \todo: only supports one timer at any given time.
  */
-int lju3_square(HANDLE dev, uint8_t pin, unsigned long hz_req, double *hz_real);
+int lju3_square(
+	HANDLE dev, ljud_pin pin, unsigned long hz_req, double *hz_real
+);
 
 #endif
 

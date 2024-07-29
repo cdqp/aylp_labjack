@@ -5,7 +5,9 @@
 			"params": {
 				"kind": "sine",
 				"type": "vector",
-				"size1": 2
+				"size1": 2,
+				"frequency": 0.31415926535,
+				"amplitude": 1
 			}
 		},
 		{
@@ -13,24 +15,16 @@
 			"params": {
 				"type": "vector",
 				"units": "V",
-				"p": -1.0
+				"p": -10.0,
+				"clamp": 10
 			}
-		},
-		{
-			"uri": "anyloop:logger"
 		},
 		{
 			"uri": "file:build/aylp_ljtdac.so",
 			"params": {
 				"host": "U3",
-				"square_hz": 1337
-			}
-		},
-		{
-			"uri": "anyloop:delay",
-			"params": {
-				"s": 0,
-				"ns": 500000000
+				"square_hz": 2048,
+				"fast": true
 			}
 		}
 	]

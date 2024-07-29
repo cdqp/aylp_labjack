@@ -14,6 +14,8 @@
 	#define static_assert _Static_assert
 #endif
 
+// define these in e.g. labjack_u3.h
+typedef uint8_t ljud_pin;
 
 /** Error codes. */
 typedef uint8_t ljud_err;

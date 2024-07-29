@@ -1,6 +1,7 @@
 #ifndef AYLP_LJTDAC_H_
 #define AYLP_LJTDAC_H_
 
+#include <stdbool.h>
 #include <libaylp/anyloop.h>
 
 
@@ -8,6 +9,7 @@ struct aylp_ljtdac_data {
 	HANDLE dev;
 	struct ljtdac_cal_mem cal_mem;
 	unsigned long square_hz;
+	bool fast;
 
 	uint8_t clock_config;
 	uint8_t clock_divisor;
