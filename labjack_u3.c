@@ -266,10 +266,14 @@ int lju3_square(HANDLE dev, uint8_t pin, unsigned long hz_req, double *hz_real)
 	unsigned divisor_min = product / 0x100;
 	// and at most ceil(sqrt(product))
 	unsigned divisor_max = sqrt(product) + 1;
-	// so brute force the divisors
-	double err_best = fabs(1 - product);
-	unsigned divisor_best = 1;
-	unsigned value_best = 1;
+	// but bounds check those
+	if (divisor_min < 0x001) divisor_min = 0x001;
+	if (divisor_max > 0x100) divisor_max = 0x100;
+	// and then brute force the divisors
+	// initialize these to max, in case we skip the for loop (min > max)
+	unsigned divisor_best = 0x100;
+	unsigned value_best = 0x100;
+	double err_best = fabs(divisor_best * value_best - product);
 	for (unsigned d = divisor_min; d <= divisor_max; d++) {
 		// and binary search for the best value for this divisor
 		unsigned v_max = 0x100;
@@ -277,7 +281,7 @@ int lju3_square(HANDLE dev, uint8_t pin, unsigned long hz_req, double *hz_real)
 		unsigned v;
 		while (v_max - v_min > 1) {
 			v = (v_max + v_min) / 2;
-			if (d * v < product) v_min = v;
+			if (d * v <= product) v_min = v;
 			if (d * v > product) v_max = v;
 		}
 		if (fabs(d * v_max - product) < err_best) {
