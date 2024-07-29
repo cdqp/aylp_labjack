@@ -18,8 +18,7 @@ an LJTick-DAC connected to a LabJack. The first voltage is written to DACA, and
 the second to DACB. The LJTick-DAC is assumed to be connected to pins FIO5 and
 FIO4 on the LabJack.
 
-Parameters
-----------
+### Parameters
 
 - `host` (string) (required)
   - The model name of the LabJack. Must be "U3" for now.
@@ -28,8 +27,6 @@ Parameters
 - `fast` (boolean) (optional)
   - Whether or not to skip the `LJUSB_Read` call after writing each voltage,
     roughly cutting latency in half. Might break things! Defaults to false.
-
-
 
 
 libaylp dependency
